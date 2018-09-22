@@ -108,6 +108,30 @@ get_db() ->
     {ok, Db} = riakc_pb_socket:start_link("127.0.0.1", 8087),
     Db.
 
+uniq(List) ->
+    do_uniq(List, []).
+
+do_uniq([], BuildingList) -> BuildingList;
+do_uniq(List, BuildingList) ->
+    Head           = lists:nth(1, List),
+    UsedAlready    = lists:member(Head, BuildingList),
+    do_uniq(tl(List), 
+	    if UsedAlready -> BuildingList;
+	       true        -> [Head | BuildingList]
+	    end).
+
+pronunciation_words(Pronunciation, Db) ->
+    {Status, Response} = riakc_pb_socket:get(
+			   Db, 
+			   <<"short_pronunciations">>, 
+			   join_pronunciations(Pronunciation)),
+    io:format("word check: ~p, ~p\n", [Pronunciation, Status]),    
+    if Status == error -> [];
+       true ->
+	    uniq(jiffy:decode(riakc_obj:get_value(Response)))
+    end.
+	
+
 main() ->
 %    couchbeam:start(),
 %    Server          = couchbeam:server_connection(
@@ -117,17 +141,28 @@ main() ->
 %    {ok, Db}        = couchbeam:create_db(Server, "words", []),        
     Db = get_db(),
 
-%    riakc_pb_socket:get(Db, <<"pronunciations">>, "AH B AA S").
+    possible_word_replacements(<<"AH B AA S">>, Db).
+%    pronunciation_words("AH B AA S", Db).
+%    riakc_pb_socket:get(Db, <<"short_pronunciations">>, "AH B AA S").
 
 %   readlines("cmudict.txt", Db).
 %    Lines = readlines("cmudict-0.7b.txt"),
 %    parse_lines(Lines, Db).
 						%  riakc_pb_socket:get(Db, <<"words2">>, "ASDF").
     
-    sentance_to_pronunciation(<<"How are you doing today?">>, Db).
+%    sentance_to_pronunciation(<<"How are you doing today?">>, Db).
 
 %    word_pronunciation(<<"AINU">>, Db).
 % 
+
+possible_word_replacements(Pronunciation, Db) ->
+    SimilarPronunciations = similar_pronunciations(Pronunciation),
+    uniq(
+      lists:foldl(fun(A, B) -> lists:append(A, B) end, 
+		  [],
+		  lists:map(fun(Case) -> pronunciation_words(Case, Db) end,
+			    SimilarPronunciations))). 
+			  
 
 similar_pronunciations(Pronunciation) ->
     CodesTable = [["AA", "AE", "AH", "AO", "AW", "AY", "AXR",    % VOWELS
