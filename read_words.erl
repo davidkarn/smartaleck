@@ -151,8 +151,20 @@ similar_pronunciations(Pronunciation) ->
     Codes           = lists:map(fun(Code) -> binary_to_list(Code) end,
 			       binary:split(Pronunciation, [<<" ">>], [global])),
     Possibilities   = get_possibilities(Codes, CodesTable),
-    Possibilities.
+    convert_possibilities(Possibilities).
     
+convert_possibilities([]) -> [[]];
+convert_possibilities(ListOfLists) ->
+    HeadList            = lists:nth(1, ListOfLists),
+    TailPossibilities   = convert_possibilities(tl(ListOfLists)),
+    Results             = lists:map(
+			    fun(Code) -> lists:map(
+					   fun(TailPossibility) -> [Code | TailPossibility] end,
+					   TailPossibilities) end,
+			    HeadList),
+    lists:foldl(fun(A, B) -> lists:append(A, B) end, [], Results).
+
+
 get_possibilities(Codes, CodesTable) ->
     lists:reverse(do_get_possibilities(Codes, CodesTable, [])).
 
