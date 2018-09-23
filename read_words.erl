@@ -125,7 +125,6 @@ pronunciation_words(Pronunciation, Db) ->
 			   Db, 
 			   <<"short_pronunciations">>, 
 			   join_pronunciations(Pronunciation)),
-    io:format("word check: ~p, ~p\n", [Pronunciation, Status]),    
     if Status == error -> [];
        true ->
 	    uniq(jiffy:decode(riakc_obj:get_value(Response)))
@@ -163,6 +162,25 @@ possible_word_replacements(Pronunciation, Db) ->
 		  lists:map(fun(Case) -> pronunciation_words(Case, Db) end,
 			    SimilarPronunciations))). 
 			  
+pronunciation_difference(Pronunciation1, Pronunciation2) ->
+    pronunciation_difference(Pronunciation1, Pronunciation2, 0).
+pronunciation_difference([], [], Count) ->
+    Count;
+pronunciation_difference(Pronunciation1, [], Count) ->
+    Count + length(Pronunciation1);
+pronunciation_difference([], Pronunciation2, Count) ->
+    Count + length(Pronunciation2);
+pronunciation_difference(Pronunciation1, Pronunciation2, Count) ->
+    Head1     = lists:nth(1, Pronunciation1),
+    Head2     = lists:nth(1, Pronunciation2),
+    pronunciation_difference(
+      tl(Pronunciation1), 
+      tl(Pronunciation2), 
+      if Head1 == Head2 ->
+	      Count;
+	  true ->
+	      Count + 1
+      end).
 
 similar_pronunciations(Pronunciation) ->
     CodesTable = [["AA", "AE", "AH", "AO", "AW", "AY", "AXR",    % VOWELS
@@ -186,7 +204,9 @@ similar_pronunciations(Pronunciation) ->
     Codes           = lists:map(fun(Code) -> binary_to_list(Code) end,
 			       binary:split(Pronunciation, [<<" ">>], [global])),
     Possibilities   = get_possibilities(Codes, CodesTable),
-    convert_possibilities(Possibilities).
+    lists:filter(fun(Choice) -> pronunciation_difference(Choice,
+							 Codes) < 3 end,
+		 convert_possibilities(Possibilities)).
     
 convert_possibilities([]) -> [[]];
 convert_possibilities(ListOfLists) ->
